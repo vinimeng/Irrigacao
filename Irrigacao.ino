@@ -2,10 +2,8 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <SPI.h>
+#include <RTClib.h>
 #include <Wire.h>
-#include <I2C_RTC.h>
-
-static DS1307 RTC; //0x3C //0x50 //0x58
 
 #define HIGROMETRO A2
 #define LEDVERMELHO 6
@@ -26,6 +24,9 @@ int passoAtual = 0;
 int higrometro = 0;
 bool diminui = true;
 bool aumenta = true;
+char buf[20];
+DS1307 rtc;
+DateTime now;
 
 void setup() {
   u8g2.begin();
@@ -33,67 +34,25 @@ void setup() {
   pinMode(LEDVERMELHO, OUTPUT);
   pinMode(LEDAMARELO, OUTPUT);
   pinMode(LEDVERDE, OUTPUT);
-  //MotorFrente.setSpeed(256);
+  #ifdef AVR
+    Wire.begin();
+  #else
+    Wire1.begin();
+  #endif
+  rtc.begin();
+  rtc.adjust(DateTime(__DATE__, __TIME__));
+  MotorFrente.setSpeed(256);
   higrometro = analogRead(HIGROMETRO);
-  //moverMotor();
-  Serial.begin(9600);
-  RTC.begin();
-  //RTC.setHourMode(CLOCK_H24);
-  //RTC.setWeek(1);
-
-  //RTC.setDate(22,07,21);
-  //RTC.setTime(23,00,00);
-  Serial.println("No");
-  Serial.println("Setting Time");
-  //RTC.setHourMode(CLOCK_H12); //Comment if RTC PCF8563
-  RTC.setHourMode(CLOCK_H24);  
-  RTC.setDateTime(__DATE__, __TIME__);
-  RTC.updateWeek();           //Update Weekdaybased on new date.    
-  Serial.println("New Time Set");
-  Serial.print(__DATE__);
-  Serial.print(" ");
-  Serial.println(__TIME__);
-  RTC.startClock(); //Start the Clock;
+  moverMotor();
 }
 
 void loop() {
   higrometro = analogRead(HIGROMETRO);
-  //moverMotor();
+  Wire.setClock(100000);
+  now = rtc.now();
+  moverMotor();
   display();
-  int nDevices = 0;
-  Serial.println(RTC.getSeconds());
-  Serial.println("Scanning...");
-
-  for (byte address = 1; address < 127; ++address) {
-    // The i2c_scanner uses the return value of
-    // the Write.endTransmisstion to see if
-    // a device did acknowledge to the address.
-    Wire.beginTransmission(address);
-    byte error = Wire.endTransmission();
-
-    if (error == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (address < 16) {
-        Serial.print("0");
-      }
-      Serial.print(address, HEX);
-      Serial.println("  !");
-
-      ++nDevices;
-    } else if (error == 4) {
-      Serial.print("Unknown error at address 0x");
-      if (address < 16) {
-        Serial.print("0");
-      }
-      Serial.println(address, HEX);
-    }
-  }
-  if (nDevices == 0) {
-    Serial.println("No I2C devices found\n");
-  } else {
-    Serial.println("done\n");
-  }
-  delay(5000); // Wait 5 seconds for next scan
+  delay(10);
 }
 
 void ligarLed(int led) {
@@ -162,5 +121,6 @@ void display() {
     s.concat("%");
     u8g2.drawStr(18, 12, s.c_str());
   }
+  u8g2.drawStr(0, 32, now.tostr(buf));
   u8g2.sendBuffer();
 }
